@@ -1,0 +1,98 @@
+# docker-compose.yml (na raiz do seu projeto)
+version: '3.8'
+
+services:
+  # API Gateway Service
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api_gateway_service
+    ports:
+      - "3000:3000" # Mapeia a porta 3000 do host para a 3000 do container
+    environment:
+      - PORT=3000
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - USER_SERVICE_URL=http://user-service:3002
+      - AGENDA_SERVICE_URL=http://agenda-service:3003
+    volumes:
+      - ./api-gateway:/usr/src/app
+      - /usr/src/app/node_modules # Evita que node_modules local sobrescreva o do container
+    depends_on:
+      - auth-service
+      - user-service
+      - agenda-service
+    networks:
+      - minha_rede_app
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth_service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - JWT_SECRET=SEU_SUPER_SEGREDO_JWT_AQUI_MUDE_ISSO # IMPORTANTE: Mude para um segredo forte!
+    volumes:
+      - ./auth-service:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - minha_rede_app
+
+  # User Service
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user_service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+    volumes:
+      - ./user-service:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      - minha_rede_app
+
+  # Agenda Service
+  agenda-service:
+    build:
+      context: ./agenda-service
+      dockerfile: Dockerfile
+    container_name: agenda_service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - MONGO_URI=mongodb://mongo_db:27017/agenda_db # URI de conexão com o MongoDB
+    volumes:
+      - ./agenda-service:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - mongo_db # Garante que o MongoDB inicie antes do agenda-service
+    networks:
+      - minha_rede_app
+
+  # MongoDB Database for Agenda Service
+  mongo_db:
+    image: mongo:latest
+    container_name: mongo_database
+    ports:
+      - "27017:27017" # Expor a porta do MongoDB no host (para acesso externo via Compass, etc.)
+    volumes:
+      - mongo_data:/data/db # Persiste os dados do MongoDB em um volume nomeado
+    environment:
+      - MONGO_INITDB_DATABASE=agenda_db # Cria um banco de dados inicial se não existir
+    networks:
+      - minha_rede_app
+
+volumes:
+  mongo_data: # Define o volume nomeado para persistência do MongoDB
+
+networks:
+  minha_rede_app:
+    driver: bridge
