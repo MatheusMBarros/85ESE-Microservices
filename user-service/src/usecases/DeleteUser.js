@@ -4,13 +4,13 @@ class DeleteUser {
   }
 
   async execute(userId) {
-    const user = await this.userRepository.getById(userId);
+    // Ajustado para usar findById() que é o método correto da interface UserRepository
+    const user = await this.userRepository.findById(userId);
     if (!user) {
       return null;
     }
-
     await this.userRepository.delete(userId);
-    return true;
+    return true; // Retorna true para indicar que a exclusão foi bem-sucedida
   }
 }
 

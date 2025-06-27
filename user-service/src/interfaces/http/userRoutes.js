@@ -1,7 +1,3 @@
-//src/interfaces/http/userRoutes.js
-// Define as rotas HTTP para o serviço de usuários.
-// Esta camada é parte das Interfaces da Clean Architecture,
-// adaptando as requisições HTTP para os casos de uso.
 const express = require("express");
 const router = express.Router();
 
@@ -11,6 +7,7 @@ const CreateUser = require("../../usecases/CreateUser");
 const GetUserById = require("../../usecases/GetUserById");
 const UpdateUser = require("../../usecases/UpdateUser");
 const ListUsers = require("../../usecases/ListUsers");
+const DeleteUser = require("../../usecases/DeleteUser"); // IMPORTADO AQUI
 
 // Importa a implementação do repositório
 const SequelizeUserRepository = require("../../infra/database/SequelizeUserRepository");
@@ -23,6 +20,7 @@ const createUser = new CreateUser(userRepository);
 const getUserById = new GetUserById(userRepository);
 const updateUser = new UpdateUser(userRepository);
 const listUsers = new ListUsers(userRepository);
+const deleteUser = new DeleteUser(userRepository); // INSTANCIADO AQUI
 
 // Middleware para tratamento de erros genéricos
 const handleError = (res, err) => {
@@ -38,14 +36,30 @@ const handleError = (res, err) => {
   ) {
     return res.status(400).json({ error: err.message }); // Bad Request
   }
-  console.error("Erro interno do servidor:", err);
+  if (
+    err.message.includes("foreign key constraint") ||
+    err.name === "SequelizeForeignKeyConstraintError"
+  ) {
+    return res.status(400).json({
+      error: "Erro de chave estrangeira. Verifique os dados relacionados.",
+    });
+  }
+  if (
+    err.name === "SequelizeDatabaseError" &&
+    err.message.includes("relation")
+  ) {
+    return res.status(500).json({
+      error: "Erro no banco de dados. Tabela ou coluna pode não existir.",
+    });
+  }
+
+  console.error("[User Service - Routes] Erro interno do servidor:", err);
   res.status(500).json({ error: "Erro interno do servidor." });
 };
 
 // Rota para criar um novo usuário (POST /api/users)
 router.post("/", async (req, res) => {
   try {
-    console.log("chamou");
     const { name, email } = req.body;
     // Cria uma nova instância de User a partir dos dados da requisição
     const newUser = new User({ name, email });
@@ -112,5 +126,4 @@ router.delete("/:id", async (req, res) => {
     handleError(res, err);
   }
 });
-
 module.exports = router;

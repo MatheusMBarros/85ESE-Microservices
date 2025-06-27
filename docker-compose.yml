@@ -1,6 +1,17 @@
 version: '3.8'
 
 services:
+  # MongoDB Service (para o Auth Service)
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb_auth_service
+    ports:
+      - "27017:27017" # Porta padrão do MongoDB
+    volumes:
+      - mongo_data_auth:/data/db # Volume para persistência dos dados do MongoDB
+    networks:
+      - minha_rede_app
+
   # API Gateway Service
   api-gateway:
     build:
@@ -14,10 +25,11 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:3001
       - USER_SERVICE_URL=http://user-service:3002
       - AGENDA_SERVICE_URL=http://agenda-service:3003
-      - JWT_SECRET=SEU_SUPER_SEGREDO_JWT_AQUI_MUDE_ISSO # Adicionado aqui também para o authMiddleware
-    volumes:
+      - JWT_SECRET=SEU_SUPER_SEGREDO_JWT_AQUI_MUDE_ISSO # IMPORTANTE: DEVE SER O MESMO DO AUTH-SERVICE!
+    volumes: # Volumes para hot-reloading em desenvolvimento
       - ./api-gateway:/usr/src/app
-      - /usr/src/app/node_modules
+      - /usr/src/app/node_modules # Impede que o node_modules do host sobrescreva o do contêiner
+    command: npm run dev # Executa nodemon para hot-reloading
     depends_on:
       - auth-service
       - user-service
@@ -35,10 +47,14 @@ services:
       - "3001:3001"
     environment:
       - PORT=3001
-      - JWT_SECRET=SEU_SUPER_SEGREDO_JWT_AQUI_MUDE_ISSO
-    volumes:
+      - JWT_SECRET=SEU_SUPER_SEGREDO_JWT_AQUI_MUDE_ISSO # IMPORTANTE: DEVE SER O MESMO DO API-GATEWAY!
+      - MONGO_URI=mongodb://mongodb_auth_service:27017/authdb # Aponta para o serviço MongoDB
+    volumes: # Volumes para hot-reloading em desenvolvimento
       - ./auth-service:/usr/src/app
       - /usr/src/app/node_modules
+    command: npm run dev # Executa nodemon para hot-reloading
+    depends_on:
+      - mongodb # Depende do MongoDB
     networks:
       - minha_rede_app
 
@@ -55,12 +71,13 @@ services:
       - DB_NAME=users_db
       - DB_USER=postgres
       - DB_PASS=postgres
-      - DB_HOST=postgres_user_service
-    volumes:
+      - DB_HOST=postgres_user_service # Aponta para o serviço PostgreSQL
+    volumes: # Volumes para hot-reloading em desenvolvimento
       - ./user-service:/usr/src/app
       - /usr/src/app/node_modules
+    command: npm run dev # Executa nodemon para hot-reloading
     depends_on:
-      - postgres_user_service
+      - postgres_user_service # Depende do PostgreSQL
     networks:
       - minha_rede_app
 
@@ -74,9 +91,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "5433:5432" # Expõe na porta 5433 do host
     volumes:
-      - pgdata_user:/var/lib/postgresql/data
+      - pgdata_user:/var/lib/postgresql/data # Volume para persistência de dados
     networks:
       - minha_rede_app
 
@@ -90,19 +107,22 @@ services:
       - "3003:3003"
     environment:
       - PORT=3003
+      # As variáveis de DB_NAME, DB_USER, etc. são mantidas aqui se você planeja
+      # que este serviço se conecte a um DB também no futuro.
       - DB_NAME=agendas_db
       - DB_USER=postgres
       - DB_PASS=postgres
       - DB_HOST=postgres_agenda_service
-    volumes:
+    volumes: # Volumes para hot-reloading em desenvolvimento
       - ./agenda-service:/usr/src/app
       - /usr/src/app/node_modules
+    command: npm run dev # Executa nodemon para hot-reloading
     depends_on:
-      - postgres_agenda_service
+      - postgres_agenda_service # Depende do PostgreSQL
     networks:
       - minha_rede_app
 
-  # PostgreSQL para Agenda Service (NOVO)
+  # PostgreSQL para Agenda Service
   postgres_agenda_service:
     image: postgres:14
     container_name: postgres_agenda_service
@@ -112,15 +132,16 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5434:5432" # Expõe na porta 5434 para evitar conflito
+      - "5434:5432" # Expõe na porta 5434 do host
     volumes:
-      - pgdata_agenda:/var/lib/postgresql/data
+      - pgdata_agenda:/var/lib/postgresql/data # Volume para persistência de dados
     networks:
       - minha_rede_app
 
 volumes:
+  mongo_data_auth:
   pgdata_user:
-  pgdata_agenda: # Adicionado volume para a agenda
+  pgdata_agenda:
 
 networks:
   minha_rede_app:

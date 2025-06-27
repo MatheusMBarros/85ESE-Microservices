@@ -1,12 +1,13 @@
-FROM node:18-alpine As base
+FROM node:18-alpine AS base
 WORKDIR /usr/src/app
 COPY package*.json ./
 
-FROM base As dependencies
-RUN npm install --omit=dev --no-optional && npm cache clean --force
+FROM base AS dependencies
+RUN npm install && npm cache clean --force
 
-FROM base As production
+FROM base AS production
 ENV NODE_ENV=production
 COPY --from=dependencies /usr/src/app/node_modules ./node_modules
 COPY . .
-CMD [ "npm", "start" ]
+EXPOSE 3002
+CMD ["npm", "start"]
