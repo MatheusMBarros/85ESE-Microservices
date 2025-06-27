@@ -14,6 +14,7 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:3001
       - USER_SERVICE_URL=http://user-service:3002
       - AGENDA_SERVICE_URL=http://agenda-service:3003
+      - JWT_SECRET=SEU_SUPER_SEGREDO_JWT_AQUI_MUDE_ISSO # Adicionado aqui também para o authMiddleware
     volumes:
       - ./api-gateway:/usr/src/app
       - /usr/src/app/node_modules
@@ -73,7 +74,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"  # Evita conflito com PostgreSQL local
+      - "5433:5432"
     volumes:
       - pgdata_user:/var/lib/postgresql/data
     networks:
@@ -89,31 +90,37 @@ services:
       - "3003:3003"
     environment:
       - PORT=3003
-      - MONGO_URI=mongodb://mongo_db:27017/agenda_db
+      - DB_NAME=agendas_db
+      - DB_USER=postgres
+      - DB_PASS=postgres
+      - DB_HOST=postgres_agenda_service
     volumes:
       - ./agenda-service:/usr/src/app
       - /usr/src/app/node_modules
     depends_on:
-      - mongo_db
+      - postgres_agenda_service
     networks:
       - minha_rede_app
 
-  # MongoDB para Agenda Service
-  mongo_db:
-    image: mongo:latest
-    container_name: mongo_database
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
+  # PostgreSQL para Agenda Service (NOVO)
+  postgres_agenda_service:
+    image: postgres:14
+    container_name: postgres_agenda_service
+    restart: always
     environment:
-      - MONGO_INITDB_DATABASE=agenda_db
+      POSTGRES_DB: agendas_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432" # Expõe na porta 5434 para evitar conflito
+    volumes:
+      - pgdata_agenda:/var/lib/postgresql/data
     networks:
       - minha_rede_app
 
 volumes:
-  mongo_data:
   pgdata_user:
+  pgdata_agenda: # Adicionado volume para a agenda
 
 networks:
   minha_rede_app:

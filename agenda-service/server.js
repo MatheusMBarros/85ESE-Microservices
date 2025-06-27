@@ -1,24 +1,33 @@
 const express = require('express');
-const mongoose = require('mongoose');
 require('dotenv').config();
+const { sequelize } = require('./src/infra/database'); // Importa a instância do Sequelize
+const agendaRoutes = require('./src/interfaces/http/agendaRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
-const MONGO_URI = process.env.MONGO_URI;
 
+// Middleware para parsear JSON
 app.use(express.json());
 
-// Conexão com MongoDB (exemplo básico)
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB conectado ao Agenda Service'))
-  .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
+// Sincroniza o Sequelize e inicia o servidor
+// O `authenticate` já é chamado dentro do index.js
+sequelize.sync() // .sync() cria as tabelas se não existirem
+  .then(() => {
+    console.log('Modelos sincronizados com o banco de dados.');
+    
+    // Rota de Health Check
+    app.get('/', (req, res) => {
+      res.send('Agenda Service está rodando!');
+    });
 
-app.get('/', (req, res) => {
-  res.send('Agenda Service está rodando!');
-});
+    // Monta as rotas de agendamento
+    app.use('/api/agendas', agendaRoutes);
 
-// Aqui virão as rotas CRUD para agendamentos
-
-app.listen(PORT, () => {
-  console.log(`Agenda Service rodando na porta ${PORT}`);
-});
+    app.listen(PORT, () => {
+      console.log(`Agenda Service rodando na porta ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('Não foi possível sincronizar os modelos com o banco de dados:', err);
+    process.exit(1);
+  });
