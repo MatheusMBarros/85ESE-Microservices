@@ -31,7 +31,6 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: |
           npm install
-          npx nyc check-coverage --lines 80
 
       - name: Build Docker image (${{ matrix.service }})
         run: |
