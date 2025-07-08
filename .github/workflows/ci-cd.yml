@@ -15,7 +15,7 @@ jobs:
         service: [agenda-service, auth-service, user-service, api-gateway]
 
     env:
-      REGISTRY: docker.io/matheusMBarros
+      REGISTRY: docker.io/mbarros01
       NODE_VERSION: 18
 
     steps:
