@@ -97,11 +97,12 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token de autenticação para o SonarQube (secreto do GitHub)
         with:
           projectBaseDir: ${{ matrix.service }} # Diretório base do projeto para a análise
+          projectKey: matheusmbarros-${{ matrix.service }} # Chave única do projeto no SonarQube
+          organization: ${{ secrets.SONAR_ORGANIZATION }} # Organização no SonarCloud (passado como input direto)
+          host.url: https://sonarcloud.io # URL do SonarCloud (passado como input direto)
           args: >
-            -Dsonar.projectKey=matheusmbarros-${{ matrix.service }} # Chave única do projeto no SonarQube
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} # Organização no SonarCloud (secreto do GitHub)
-            -Dsonar.host.url=https://sonarcloud.io # URL do SonarCloud
-            -Dsonar.qualitygate.wait=true # Espera pelo resultado do Quality Gate
+            -Dsonar.qualitygate.wait=true # Espera pelo resultado do Quality Gate (outros args podem ser adicionados aqui)
+        # As propriedades 'organization' e 'host.url' foram movidas para inputs diretos da ação.
 
       - name: Upload Swagger YAML (${{ matrix.service }}) # Faz upload da documentação Swagger
         uses: actions/upload-artifact@v4
