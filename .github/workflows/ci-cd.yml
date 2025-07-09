@@ -1,67 +1,60 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline - Trabalho 2
 
+# Define os eventos que irão disparar este pipeline
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main    # Branch para ambiente de Produção
+      - develop # Branch para ambiente de Desenvolvimento
   pull_request:
-  workflow_dispatch:
+    branches:
+      - main
+      - develop
+  workflow_dispatch: # Permite disparar o pipeline manualmente
 
+# Define os jobs (trabalhos) que serão executados no pipeline
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+  # Job para construir, testar e escanear cada serviço
+  build-test-scan:
+    runs-on: ubuntu-latest # O sistema operacional onde o job será executado
 
+    # Estratégia de matriz para executar as etapas para cada serviço
     strategy:
       matrix:
-        service: [agenda-service, auth-service, user-service, api-gateway]
+        service: [agenda-service, auth-service, user-service, api-gateway] # Lista de serviços a serem processados
 
+    # Variáveis de ambiente globais para este job
     env:
-      REGISTRY: docker.io/mbarros01
-      NODE_VERSION: 18
+      NODE_VERSION: 18 # Versão do Node.js a ser utilizada
 
     steps:
-      - name: Checkout code
+      - name: Checkout code # Etapa para clonar o repositório
         uses: actions/checkout@v3
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }} for ${{ matrix.service }}
+      - name: Setup Node.js ${{ env.NODE_VERSION }} for ${{ matrix.service }} # Configura o ambiente Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ matrix.service }}/package-lock.json # Especifica o caminho do arquivo de lock para o cache
-        # Isso garante que o cache seja configurado corretamente para o arquivo de lock de cada serviço.
-        # Se você usa 'yarn' ou outro gerenciador de pacotes, ajuste 'cache' e 'cache-dependency-path' de acordo.
+          cache: 'npm' # Habilita o cache do npm para acelerar a instalação de dependências
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json # Caminho do arquivo de lock para o cache
 
-      - name: Debugging - List files in ${{ matrix.service }}
-        if: ${{ matrix.service == 'auth-service' }} # Apenas para depurar o auth-service
+      - name: Install dependencies (${{ matrix.service }}) # Instala as dependências do serviço
+        working-directory: ${{ matrix.service }} # Define o diretório de trabalho para o serviço atual
+        run: npm install --verbose # Instala as dependências com saída detalhada para depuração
+
+      - name: Run tests (${{ matrix.service }}) # Executa os testes do serviço
         working-directory: ${{ matrix.service }}
         run: |
-          echo "Listing files in ${{ matrix.service }}:"
-          ls -la
-          echo "Content of package.json:"
-          cat package.json
-          if [ -f "package-lock.json" ]; then
-            echo "Content of package-lock.json:"
-            cat package.lock.json
+          # Verifica se o script 'test' existe no package.json antes de tentar executá-lo.
+          if grep -q '"test":' package.json; then
+            echo "Running 'npm test' for ${{ matrix.service }}..."
+            npm test # Executa o script 'test' definido no package.json
           else
-            echo "package-lock.json not found."
+            echo "No 'test' script found in package.json for ${{ matrix.service }}. Skipping test step."
           fi
-        # Adicionei esta etapa para ajudar a depurar o que está acontecendo no diretório do serviço,
-        # especialmente para o 'auth-service' que está falhando.
+        # Esta etapa agora é condicional à existência do script 'test'.
 
-      - name: Install dependencies (${{ matrix.service }})
-        working-directory: ${{ matrix.service }}
-        run: npm install --verbose # Adiciona --verbose para mais detalhes em caso de falha
-        # Esta etapa irá procurar pelo package.json e package-lock.json dentro do working-directory.
-        # Se o erro persistir, verifique se o package-lock.json realmente existe em cada pasta de serviço
-        # e se foi commitado para o repositório.
-
-      - name: Run tests (${{ matrix.service }})
-        working-directory: ${{ matrix.service }}
-        run: npm test
-        # É crucial rodar os testes antes de construir a imagem Docker.
-        # Se os testes falharem, o build não prosseguirá, economizando tempo e recursos.
-
-      - name: Build service (${{ matrix.service }})
+      - name: Build service (${{ matrix.service }}) # Constrói o serviço (se houver script 'build')
         working-directory: ${{ matrix.service }}
         run: |
           # Verifica se o script 'build' existe no package.json antes de tentar executá-lo.
@@ -71,10 +64,45 @@ jobs:
           else
             echo "No 'build' script found in package.json for ${{ matrix.service }}. Skipping build step."
           fi
-        # Muitos projetos Node.js precisam de uma etapa de build (ex: transpilação, bundling).
-        # Esta etapa agora é condicional à existência do script 'build'.
+        # Esta etapa é condicional e só será executada se o script 'build' estiver presente.
 
-      - name: Build Docker image (${{ matrix.service }})
+      - name: SonarQube Scan (${{ matrix.service }}) # Executa a análise de código com SonarQube
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token de autenticação para o SonarQube (secreto do GitHub)
+        with:
+          projectBaseDir: ${{ matrix.service }} # Diretório base do projeto para a análise
+          args: >
+            -Dsonar.projectKey=matheusmbarros-${{ matrix.service }} # Chave única do projeto no SonarQube
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} # Organização no SonarCloud (secreto do GitHub)
+            -Dsonar.host.url=https://sonarcloud.io # URL do SonarCloud
+            -Dsonar.qualitygate.wait=true # Espera pelo resultado do Quality Gate
+
+      - name: Upload Swagger YAML (${{ matrix.service }}) # Faz upload da documentação Swagger
+        uses: actions/upload-artifact@v4
+        with:
+          name: swagger-${{ matrix.service }} # Nome do artefato
+          path: ${{ matrix.service }}/swagger.yaml # Caminho do arquivo swagger.yaml
+        continue-on-error: true # Permite que o pipeline continue mesmo se o arquivo não for encontrado
+        # Garanta que o swagger.yaml seja gerado durante a etapa de 'build' ou que já exista no repositório.
+
+  # Job para construir e publicar imagens Docker
+  publish-docker-image:
+    runs-on: ubuntu-latest
+    needs: build-test-scan # Este job só será executado se o job 'build-test-scan' for bem-sucedido
+
+    strategy:
+      matrix:
+        service: [agenda-service, auth-service, user-service, api-gateway]
+
+    env:
+      REGISTRY: docker.io/mbarros01 # Registro DockerHub (seu usuário)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker image (${{ matrix.service }}) # Constrói a imagem Docker
         run: |
           # Verifica se o Dockerfile existe antes de tentar construir
           if [ -f "${{ matrix.service }}/Dockerfile" ]; then
@@ -83,40 +111,57 @@ jobs:
             echo "Dockerfile not found in ${{ matrix.service }}/. Skipping Docker build for this service."
             exit 1 # Falha a etapa se o Dockerfile não for encontrado, pois é essencial para o deploy
           fi
-        # Se o 'docker build' falhar, verifique os logs para erros dentro do Dockerfile,
-        # especialmente comandos como 'npm install' ou 'npm run build' que podem estar duplicados
-        # ou falhando dentro do container.
 
-      - name: Docker Login
+      - name: Docker Login # Realiza o login no DockerHub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKER_USERNAME }} # Usuário do DockerHub (secreto do GitHub)
+          password: ${{ secrets.DOCKER_PASSWORD }} # Senha do DockerHub (secreto do GitHub)
 
-      - name: Push Docker image (${{ matrix.service }})
+      - name: Push Docker image (${{ matrix.service }}) # Publica a imagem no DockerHub
         run: |
-          docker push $REGISTRY/${{ matrix.service }}:${{ github.sha }}
-          docker tag $REGISTRY/${{ matrix.service }}:${{ github.sha }} $REGISTRY/${{ matrix.service }}:latest
-          docker push $REGISTRY/${{ matrix.service }}:latest
+          docker push $REGISTRY/${{ matrix.service }}:${{ github.sha }} # Publica com o SHA do commit
+          docker tag $REGISTRY/${{ matrix.service }}:${{ github.sha }} $REGISTRY/${{ matrix.service }}:latest # Cria a tag 'latest'
+          docker push $REGISTRY/${{ matrix.service }}:latest # Publica a imagem com a tag 'latest'
 
-      - name: Upload Swagger YAML (${{ matrix.service }})
-        uses: actions/upload-artifact@v4
-        with:
-          name: swagger-${{ matrix.service }}
-          path: ${{ matrix.service }}/swagger.yaml
-        continue-on-error: true # Permite que o pipeline continue mesmo se o swagger.yaml não for encontrado.
-        # Se o swagger.yaml for gerado durante a etapa de 'build', certifique-se de que esta etapa
-        # esteja após a etapa de 'build' para garantir que o arquivo exista.
-        # Verifique se o caminho '${{ matrix.service }}/swagger.yaml' está correto.
+  # Job para implantação no ambiente de Desenvolvimento
+  deploy-to-dev:
+    runs-on: ubuntu-latest
+    needs: publish-docker-image # Este job só será executado se o job 'publish-docker-image' for bem-sucedido
+    environment: development # Define o ambiente de implantação (para proteção e variáveis de ambiente)
+    if: github.ref == 'refs/heads/develop' # Só executa se o push for para a branch 'develop'
 
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: ${{ matrix.service }}
-          args: >
-            -Dsonar.projectKey= matheusmbarros
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
-            -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.qualitygate.wait=true
+    strategy:
+      matrix:
+        service: [agenda-service, auth-service, user-service, api-gateway]
+
+    steps:
+      - name: Deploy ${{ matrix.service }} to Development Kubernetes # Simula a implantação no Kubernetes
+        run: |
+          echo "Simulating deployment of ${{ matrix.service }} to Development Kubernetes cluster..."
+          echo "Image: ${{ env.REGISTRY }}/${{ matrix.service }}:latest"
+          # Aqui você adicionaria seus comandos reais de implantação no Kubernetes,
+          # por exemplo, usando kubectl, Helm, Kustomize, etc.
+          # Exemplo: kubectl apply -f kubernetes/dev/${{ matrix.service }}.yaml
+          # Ou: helm upgrade --install ${{ matrix.service }}-dev ./helm-charts/${{ matrix.service }} --namespace dev --set image.tag=latest
+
+  # Job para implantação no ambiente de Produção
+  deploy-to-prod:
+    runs-on: ubuntu-latest
+    needs: publish-docker-image # Este job só será executado se o job 'publish-docker-image' for bem-sucedido
+    environment: production # Define o ambiente de implantação (para proteção e variáveis de ambiente)
+    if: github.ref == 'refs/heads/main' # Só executa se o push for para a branch 'main'
+
+    strategy:
+      matrix:
+        service: [agenda-service, auth-service, user-service, api-gateway]
+
+    steps:
+      - name: Deploy ${{ matrix.service }} to Production Kubernetes # Simula a implantação no Kubernetes
+        run: |
+          echo "Simulating deployment of ${{ matrix.service }} to Production Kubernetes cluster..."
+          echo "Image: ${{ env.REGISTRY }}/${{ matrix.service }}:latest"
+          # Aqui você adicionaria seus comandos reais de implantação no Kubernetes,
+          # por exemplo, usando kubectl, Helm, Kustomize, etc.
+          # Exemplo: kubectl apply -f kubernetes/prod/${{ matrix.service }}.yaml
+          # Ou: helm upgrade --install ${{ matrix.service }}-prod ./helm-charts/${{ matrix.service }} --namespace prod --set image.tag=latest
