@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop] 
-  pull_request:               
-  workflow_dispatch:         
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -53,12 +53,6 @@ jobs:
           name: swagger-${{ matrix.service }}
           path: ${{ matrix.service }}/swagger.yaml
         continue-on-error: true
-
-      - name: Deploy to Development
-        if: github.ref == 'refs/heads/develop'
-
-      - name: Deploy to Production
-        if: github.ref == 'refs/heads/main'
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@master
