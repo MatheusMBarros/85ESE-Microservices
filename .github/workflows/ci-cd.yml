@@ -26,7 +26,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
+          cache: 'npm'
           cache-dependency-path: ${{ matrix.service }}/package-lock.json # Especifica o caminho do arquivo de lock para o cache
         # Isso garante que o cache seja configurado corretamente para o arquivo de lock de cada serviço.
         # Se você usa 'yarn' ou outro gerenciador de pacotes, ajuste 'cache' e 'cache-dependency-path' de acordo.
@@ -41,7 +41,7 @@ jobs:
           cat package.json
           if [ -f "package-lock.json" ]; then
             echo "Content of package-lock.json:"
-            cat package-lock.json
+            cat package.lock.json
           else
             echo "package-lock.json not found."
           fi
@@ -55,12 +55,24 @@ jobs:
         # Se o erro persistir, verifique se o package-lock.json realmente existe em cada pasta de serviço
         # e se foi commitado para o repositório.
 
+      - name: Run tests (${{ matrix.service }})
+        working-directory: ${{ matrix.service }}
+        run: npm test
+        # É crucial rodar os testes antes de construir a imagem Docker.
+        # Se os testes falharem, o build não prosseguirá, economizando tempo e recursos.
+
       - name: Build service (${{ matrix.service }})
         working-directory: ${{ matrix.service }}
-        run: npm run build
+        run: |
+          # Verifica se o script 'build' existe no package.json antes de tentar executá-lo.
+          if grep -q '"build":' package.json; then
+            echo "Running 'npm run build' for ${{ matrix.service }}..."
+            npm run build
+          else
+            echo "No 'build' script found in package.json for ${{ matrix.service }}. Skipping build step."
+          fi
         # Muitos projetos Node.js precisam de uma etapa de build (ex: transpilação, bundling).
-        # Se o seu projeto tiver um script 'build' no package.json, adicione esta etapa.
-        # Caso contrário, remova-a.
+        # Esta etapa agora é condicional à existência do script 'build'.
 
       - name: Build Docker image (${{ matrix.service }})
         run: |
