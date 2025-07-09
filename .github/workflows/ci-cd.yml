@@ -31,9 +31,26 @@ jobs:
         # Isso garante que o cache seja configurado corretamente para o arquivo de lock de cada serviço.
         # Se você usa 'yarn' ou outro gerenciador de pacotes, ajuste 'cache' e 'cache-dependency-path' de acordo.
 
+      - name: Debugging - List files in ${{ matrix.service }}
+        if: ${{ matrix.service == 'auth-service' }} # Apenas para depurar o auth-service
+        working-directory: ${{ matrix.service }}
+        run: |
+          echo "Listing files in ${{ matrix.service }}:"
+          ls -la
+          echo "Content of package.json:"
+          cat package.json
+          if [ -f "package-lock.json" ]; then
+            echo "Content of package-lock.json:"
+            cat package-lock.json
+          else
+            echo "package-lock.json not found."
+          fi
+        # Adicionei esta etapa para ajudar a depurar o que está acontecendo no diretório do serviço,
+        # especialmente para o 'auth-service' que está falhando.
+
       - name: Install dependencies (${{ matrix.service }})
         working-directory: ${{ matrix.service }}
-        run: npm install
+        run: npm install --verbose # Adiciona --verbose para mais detalhes em caso de falha
         # Esta etapa irá procurar pelo package.json e package-lock.json dentro do working-directory.
         # Se o erro persistir, verifique se o package-lock.json realmente existe em cada pasta de serviço
         # e se foi commitado para o repositório.
