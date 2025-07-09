@@ -26,14 +26,39 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm' # Adiciona cache para dependências npm, acelerando builds futuros
 
       - name: Install dependencies (${{ matrix.service }})
         working-directory: ${{ matrix.service }}
         run: npm install
+        # Adicione um 'if: always()' se quiser que esta etapa seja executada mesmo após falhas anteriores
+        # mas geralmente, se o npm install falhar, as próximas etapas não farão sentido.
+
+      - name: Run tests (${{ matrix.service }})
+        working-directory: ${{ matrix.service }}
+        run: npm test
+        # É crucial rodar os testes antes de construir a imagem Docker.
+        # Se os testes falharem, o build não prosseguirá, economizando tempo e recursos.
+
+      - name: Build service (${{ matrix.service }})
+        working-directory: ${{ matrix.service }}
+        run: npm run build
+        # Muitos projetos Node.js precisam de uma etapa de build (ex: transpilação, bundling).
+        # Se o seu projeto tiver um script 'build' no package.json, adicione esta etapa.
+        # Caso contrário, remova-a.
 
       - name: Build Docker image (${{ matrix.service }})
         run: |
-          docker build -t $REGISTRY/${{ matrix.service }}:${{ github.sha }} ${{ matrix.service }}
+          # Verifica se o Dockerfile existe antes de tentar construir
+          if [ -f "${{ matrix.service }}/Dockerfile" ]; then
+            docker build -t $REGISTRY/${{ matrix.service }}:${{ github.sha }} ${{ matrix.service }}
+          else
+            echo "Dockerfile not found in ${{ matrix.service }}/. Skipping Docker build for this service."
+            exit 1 # Falha a etapa se o Dockerfile não for encontrado, pois é essencial para o deploy
+          fi
+        # Se o 'docker build' falhar, verifique os logs para erros dentro do Dockerfile,
+        # especialmente comandos como 'npm install' ou 'npm run build' que podem estar duplicados
+        # ou falhando dentro do container.
 
       - name: Docker Login
         uses: docker/login-action@v3
@@ -52,7 +77,10 @@ jobs:
         with:
           name: swagger-${{ matrix.service }}
           path: ${{ matrix.service }}/swagger.yaml
-        continue-on-error: true
+        continue-on-error: true # Permite que o pipeline continue mesmo se o swagger.yaml não for encontrado.
+        # Se o swagger.yaml for gerado durante a etapa de 'build', certifique-se de que esta etapa
+        # esteja após a etapa de 'build' para garantir que o arquivo exista.
+        # Verifique se o caminho '${{ matrix.service }}/swagger.yaml' está correto.
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@master
