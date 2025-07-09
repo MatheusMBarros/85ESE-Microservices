@@ -22,17 +22,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Setup Node.js ${{ env.NODE_VERSION }}
+      - name: Setup Node.js ${{ env.NODE_VERSION }} for ${{ matrix.service }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm' # Adiciona cache para dependências npm, acelerando builds futuros
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json # Especifica o caminho do arquivo de lock para o cache
+        # Isso garante que o cache seja configurado corretamente para o arquivo de lock de cada serviço.
+        # Se você usa 'yarn' ou outro gerenciador de pacotes, ajuste 'cache' e 'cache-dependency-path' de acordo.
 
       - name: Install dependencies (${{ matrix.service }})
         working-directory: ${{ matrix.service }}
         run: npm install
-        # Adicione um 'if: always()' se quiser que esta etapa seja executada mesmo após falhas anteriores
-        # mas geralmente, se o npm install falhar, as próximas etapas não farão sentido.
+        # Esta etapa irá procurar pelo package.json e package-lock.json dentro do working-directory.
+        # Se o erro persistir, verifique se o package-lock.json realmente existe em cada pasta de serviço
+        # e se foi commitado para o repositório.
 
       - name: Run tests (${{ matrix.service }})
         working-directory: ${{ matrix.service }}
