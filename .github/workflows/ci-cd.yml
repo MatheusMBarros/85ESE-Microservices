@@ -38,9 +38,34 @@ jobs:
           cache: 'npm' # Habilita o cache do npm para acelerar a instalação de dependências
           cache-dependency-path: ${{ matrix.service }}/package-lock.json # Caminho do arquivo de lock para o cache
 
+      - name: Debugging - Node & NPM versions # Adiciona etapa para verificar versões do Node e NPM
+        run: |
+          node -v
+          npm -v
+
+      - name: Debugging - List files in ${{ matrix.service }} (Before Install) # Lista arquivos antes da instalação
+        working-directory: ${{ matrix.service }}
+        run: |
+          echo "Listing files in ${{ matrix.service }} (Before Install):"
+          ls -la
+          echo "Content of package.json:"
+          cat package.json
+          if [ -f "package-lock.json" ]; then
+            echo "Content of package-lock.json:"
+            cat package-lock.json
+          else
+            echo "package-lock.json not found."
+          fi
+
       - name: Install dependencies (${{ matrix.service }}) # Instala as dependências do serviço
         working-directory: ${{ matrix.service }} # Define o diretório de trabalho para o serviço atual
         run: npm install --verbose # Instala as dependências com saída detalhada para depuração
+
+      - name: Debugging - List files in ${{ matrix.service }} (After Install) # Lista arquivos após a instalação
+        working-directory: ${{ matrix.service }}
+        run: |
+          echo "Listing files in ${{ matrix.service }} (After Install):"
+          ls -la
 
       - name: Run tests (${{ matrix.service }}) # Executa os testes do serviço
         working-directory: ${{ matrix.service }}
