@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop] # Aciona o workflow em pushes para main e develop
-  pull_request:               # Aciona em pull requests
-  workflow_dispatch:          # Permite acionamento manual
+    branches: [main, develop] 
+  pull_request:               
+  workflow_dispatch:         
 
 jobs:
   build-and-deploy:
