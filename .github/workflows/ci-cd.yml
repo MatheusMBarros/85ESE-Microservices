@@ -56,11 +56,9 @@ jobs:
 
       - name: Deploy to Development
         if: github.ref == 'refs/heads/develop'
-        run: echo ">>> Simulando deploy para ambiente de desenvolvimento: ${{ matrix.service }}"
 
       - name: Deploy to Production
         if: github.ref == 'refs/heads/main'
-        run: echo ">>> Simulando deploy para ambiente de produção: ${{ matrix.service }}"
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@master
