@@ -65,4 +65,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          projectBaseDir: ${{ matrix.service }}
+          projectBaseDir: ${{ matrix.service }} 
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}_${{ matrix.service }} 
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.host.url=https://sonarcloud.io 
