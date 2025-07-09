@@ -2,71 +2,78 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
-  workflow_dispatch:
+    branches: [main, develop] # Aciona o workflow em pushes para main e develop
+  pull_request: # Aciona o workflow em pull requests (para análise de qualidade antes do merge, por exemplo)
+  workflow_dispatch: # Permite acionamento manual do workflow
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # O sistema operacional do runner
 
     strategy:
       matrix:
-        service: [agenda-service, auth-service, user-service, api-gateway]
+        service: [agenda-service, auth-service, user-service, api-gateway] # Define os serviços para rodar em paralelo
 
     env:
-      REGISTRY: docker.io/mbarros01
-      NODE_VERSION: 18
+      REGISTRY: docker.io/mbarros01 # Seu registry Docker Hub
+      NODE_VERSION: 18 # Versão do Node.js a ser utilizada
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3 # Faz o checkout do código do repositório
 
       - name: Setup Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4 # Configura o ambiente Node.js
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install dependencies & Test (${{ matrix.service }})
-        working-directory: ${{ matrix.service }}
+      - name: Install dependencies & Run Tests (${{ matrix.service }})
+        working-directory: ${{ matrix.service }} # Define o diretório de trabalho para cada serviço
         run: |
-          npm install
+          npm install # Instala as dependências do projeto
+          npm test # *** IMPORTANTE: Adiciona a execução dos testes automatizados ***
+          # Se você usa Jest e quer gerar cobertura, seu package.json pode ter:
+          # "test": "jest --coverage"
+          # Isso geraria o relatório 'lcov.info' na pasta 'coverage'
+          # Certifique-se de que seus testes estão configurados para gerar um relatório de cobertura LCOV
 
       - name: Build Docker image (${{ matrix.service }})
         run: |
-          docker build -t $REGISTRY/${{ matrix.service }}:${{ github.sha }} ${{ matrix.service }}
+          docker build -t $REGISTRY/${{ matrix.service }}:${{ github.sha }} ${{ matrix.service }} # Constrói a imagem Docker com tag SHA
 
       - name: Docker Login
-        uses: docker/login-action@v3
+        uses: docker/login-action@v3 # Ação para fazer login no Docker Hub
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKER_USERNAME }} # Usa o secret para o username
+          password: ${{ secrets.DOCKER_PASSWORD }} # Usa o secret para a password
 
       - name: Push Docker image (${{ matrix.service }})
         run: |
-          docker push $REGISTRY/${{ matrix.service }}:${{ github.sha }}
-          docker tag $REGISTRY/${{ matrix.service }}:${{ github.sha }} $REGISTRY/${{ matrix.service }}:latest
-          docker push $REGISTRY/${{ matrix.service }}:latest
+          docker push $REGISTRY/${{ matrix.service }}:${{ github.sha }} # Faz push da imagem com tag SHA
+          docker tag $REGISTRY/${{ matrix.service }}:${{ github.sha }} $REGISTRY/${{ matrix.service }}:latest # Taggeia a imagem com 'latest'
+          docker push $REGISTRY/${{ matrix.service }}:latest # Faz push da imagem com tag 'latest'
 
       - name: Deploy to Development
-        if: github.ref == 'refs/heads/develop'
+        if: github.ref == 'refs/heads/develop' # Executa apenas se o push for para a branch 'develop'
         run: |
-          echo "Deploy script para ambiente de desenvolvimento"
-          bash ./deploy-dev.sh ${{ matrix.service }}
+          echo "Executando script de deploy para ambiente de desenvolvimento para ${{ matrix.service }}"
+          bash ./deploy-dev.sh ${{ matrix.service }} # Chama o script de deploy para dev
 
       - name: Deploy to Production
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' # Executa apenas se o push for para a branch 'main'
         run: |
-          echo "Deploy script para produção"
-          bash ./deploy-prod.sh ${{ matrix.service }}
+          echo "Executando script de deploy para produção para ${{ matrix.service }}"
+          bash ./deploy-prod.sh ${{ matrix.service }} # Chama o script de deploy para prod
 
       - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@master
+        uses: sonarsource/sonarqube-scan-action@master # Ação para o SonarQube
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token de autenticação do SonarQube
         with:
-          projectBaseDir: ${{ matrix.service }} 
-          args: >
-            -Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}_${{ matrix.service }} 
-            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
-            -Dsonar.host.url=https://sonarcloud.io 
+          projectBaseDir: ${{ matrix.service }} # Define o diretório base do projeto para o scanner
+          args: > # Argumentos adicionais para o scanner do SonarQube
+            -Dsonar.projectKey=${{ secrets.SONAR_ORGANIZATION }}_${{ matrix.service }} # Chave única do projeto no SonarCloud (ex: MatheusMBarros_agenda-service)
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} # Sua organização no SonarCloud
+            -Dsonar.host.url=https://sonarcloud.io # URL do servidor SonarCloud
+            -Dsonar.javascript.lcov.reportPaths=${{ matrix.service }}/coverage/lcov.info # *** IMPORTANTE: Caminho para o relatório de cobertura LCOV ***
+            -Dsonar.qualitygate.wait=true # *** Opcional: Faz o workflow esperar pelo resultado do Quality Gate do SonarQube e falhar se não aprovado ***
