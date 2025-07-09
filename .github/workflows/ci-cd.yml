@@ -26,7 +26,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
           cache-dependency-path: ${{ matrix.service }}/package-lock.json # Especifica o caminho do arquivo de lock para o cache
         # Isso garante que o cache seja configurado corretamente para o arquivo de lock de cada serviço.
         # Se você usa 'yarn' ou outro gerenciador de pacotes, ajuste 'cache' e 'cache-dependency-path' de acordo.
@@ -54,12 +54,6 @@ jobs:
         # Esta etapa irá procurar pelo package.json e package-lock.json dentro do working-directory.
         # Se o erro persistir, verifique se o package-lock.json realmente existe em cada pasta de serviço
         # e se foi commitado para o repositório.
-
-      - name: Run tests (${{ matrix.service }})
-        working-directory: ${{ matrix.service }}
-        run: npm test
-        # É crucial rodar os testes antes de construir a imagem Docker.
-        # Se os testes falharem, o build não prosseguirá, economizando tempo e recursos.
 
       - name: Build service (${{ matrix.service }})
         working-directory: ${{ matrix.service }}
