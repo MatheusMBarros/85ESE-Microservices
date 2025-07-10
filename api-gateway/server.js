@@ -3,6 +3,22 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 require("dotenv").config();
 const authMiddleware = require("./src/authMiddleware");
 
+// --- Adições para Prometheus ---
+const client = require("prom-client");
+const collectDefaultMetrics = client.collectDefaultMetrics;
+const register = client.register;
+
+// Coleta métricas padrão com um prefixo para o API Gateway
+collectDefaultMetrics({ prefix: "api_gateway_" });
+
+// Cria um contador para requisições HTTP que passam pelo Gateway
+const httpRequestCounter = new client.Counter({
+  name: "api_gateway_http_requests_total",
+  help: "Total number of HTTP requests processed by API Gateway",
+  labelNames: ["method", "route", "status_code"],
+});
+// --- Fim Adições para Prometheus ---
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -13,14 +29,35 @@ const AGENDA_SERVICE_URL = process.env.AGENDA_SERVICE_URL;
 
 app.use(express.json());
 
+// --- Middleware para contar requisições no Gateway ---
+app.use((req, res, next) => {
+  // Escuta o evento 'finish' da resposta para capturar o status code final
+  res.on("finish", () => {
+    httpRequestCounter.inc({
+      method: req.method,
+      route: req.path,
+      status_code: res.statusCode,
+    });
+  });
+  next();
+});
+// --- Fim Middleware para contar requisições ---
+
 // Rota de Health Check do Gateway
 app.get("/", (req, res) => {
   res.send("API Gateway está rodando!");
 });
 
+// --- Endpoint para Métricas do Prometheus ---
+app.get("/metrics", async (req, res) => {
+  res.set("Content-Type", register.contentType);
+  res.end(await register.metrics());
+});
+// --- Fim Endpoint para Métricas do Prometheus ---
+
 // Configuração dos proxies para cada serviço
 
-// As rotas de autenticação (/login, /register) são públicas
+// As rotas de autenticação (/login, /register) são públicas e não precisam de autenticação via middleware
 if (AUTH_SERVICE_URL) {
   app.use(
     "/api/auth",
@@ -28,7 +65,7 @@ if (AUTH_SERVICE_URL) {
       target: AUTH_SERVICE_URL,
       changeOrigin: true,
       pathRewrite: {
-        "^/api/auth": "/api/auth", // Assumindo que o auth-service espera o /api/auth no path
+        "^/api/auth": "/api/auth", // Reescreve o caminho, se necessário
       },
       onProxyReq: (proxyReq, req, res) => {
         console.log(
@@ -43,7 +80,7 @@ if (AUTH_SERVICE_URL) {
 if (USER_SERVICE_URL) {
   app.use(
     "/api/users",
-    authMiddleware,
+    authMiddleware, // Aplica o middleware de autenticação
     createProxyMiddleware({
       target: USER_SERVICE_URL,
       changeOrigin: true,
@@ -63,7 +100,7 @@ if (USER_SERVICE_URL) {
 if (AGENDA_SERVICE_URL) {
   app.use(
     "/api/agendas",
-    authMiddleware,
+    authMiddleware, // Aplica o middleware de autenticação
     createProxyMiddleware({
       target: AGENDA_SERVICE_URL,
       changeOrigin: true,
@@ -84,8 +121,10 @@ app.use((req, res) => {
   res.status(404).json({ error: "Rota não encontrada no API Gateway." });
 });
 
+// Iniciar o servidor
 app.listen(PORT, () => {
   console.log(`API Gateway rodando na porta ${PORT}`);
+  // Avisos úteis na inicialização se as URLs dos serviços não estiverem definidas
   if (!AUTH_SERVICE_URL || !USER_SERVICE_URL || !AGENDA_SERVICE_URL) {
     console.warn(
       "AVISO: Uma ou mais URLs de serviço não estão definidas nas variáveis de ambiente. O roteamento pode não funcionar corretamente."

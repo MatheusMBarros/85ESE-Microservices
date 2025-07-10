@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # MongoDB Service (para o Auth Service)
@@ -107,8 +107,6 @@ services:
       - "3003:3003"
     environment:
       - PORT=3003
-      # As variáveis de DB_NAME, DB_USER, etc. são mantidas aqui se você planeja
-      # que este serviço se conecte a um DB também no futuro.
       - DB_NAME=agendas_db
       - DB_USER=postgres
       - DB_PASS=postgres
@@ -138,10 +136,44 @@ services:
     networks:
       - minha_rede_app
 
+  # --- Adição do Prometheus Service ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus_monitor
+    ports:
+      - "9090:9090" # Porta para acessar a UI do Prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml # Mapeia o arquivo de configuração
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml" # Argumento para carregar a configuração
+    depends_on:
+      - api-gateway # Garante que os serviços estejam rodando antes do Prometheus tentar raspá-los
+      - auth-service
+      - user-service
+      - agenda-service
+    networks:
+      - minha_rede_app
+
+  # --- Adição do Grafana Service ---
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_dashboard
+    ports:
+      - "3008:3000" # Porta para acessar a UI do Grafana (pode conflitar com o gateway se rodar localmente)
+      # Se a porta 3000 já estiver em uso pelo gateway no seu host, mude para:
+      # - "3001:3000" ou outra porta disponível no host
+    volumes:
+      - grafana_data:/var/lib/grafana # Volume persistente para dados do Grafana
+    depends_on:
+      - prometheus # Grafana precisa do Prometheus como fonte de dados
+    networks:
+      - minha_rede_app
+
 volumes:
   mongo_data_auth:
   pgdata_user:
   pgdata_agenda:
+  grafana_data: # Novo volume para persistir dados do Grafana
 
 networks:
   minha_rede_app:

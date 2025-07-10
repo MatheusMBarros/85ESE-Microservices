@@ -1,0 +1,18 @@
+openapi: 3.0.0
+info:
+  title: Agenda Service API
+  version: 1.0.0
+  description: Documentação da API do serviço de Agendamento.
+servers:
+  - url: http://localhost:3003/api
+    description: Servidor de Desenvolvimento
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
+paths: {}
+tags: []

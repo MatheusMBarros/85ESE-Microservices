@@ -8,11 +8,14 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "dotenv": "^16.3.1",
     "express": "^4.18.2",
-    "sequelize": "^6.32.1",
     "pg": "^8.11.1",
     "pg-hstore": "^2.3.4",
-    "dotenv": "^16.3.1"
+    "prom-client": "^15.1.3",
+    "sequelize": "^6.32.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
