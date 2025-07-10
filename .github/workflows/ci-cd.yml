@@ -103,6 +103,7 @@ jobs:
             -Dsonar.projectKey=matheusmbarros-${{ matrix.service }}
             -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
             -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.sources=.
             -Dsonar.qualitygate.wait=true
 
       - name: Upload Swagger YAML (${{ matrix.service }}) # Faz upload da documentação Swagger
