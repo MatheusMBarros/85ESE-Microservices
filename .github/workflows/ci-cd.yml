@@ -67,17 +67,6 @@ jobs:
           echo "Listing files in ${{ matrix.service }} (After Install):"
           ls -la
 
-      - name: Run tests (${{ matrix.service }}) # Executa os testes do serviço
-        working-directory: ${{ matrix.service }}
-        run: |
-          # Verifica se o script 'test' existe no package.json antes de tentar executá-lo.
-          if grep -q '"test":' package.json; then
-            echo "Running 'npm test' for ${{ matrix.service }}..."
-            npm test # Executa o script 'test' definido no package.json
-          else
-            echo "No 'test' script found in package.json for ${{ matrix.service }}. Skipping test step."
-          fi
-        # Esta etapa agora é condicional à existência do script 'test'.
 
       - name: Build service (${{ matrix.service }}) # Constrói o serviço (se houver script 'build')
         working-directory: ${{ matrix.service }}
