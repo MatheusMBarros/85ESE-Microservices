@@ -91,18 +91,19 @@ jobs:
           fi
         # Esta etapa é condicional e só será executada se o script 'build' estiver presente.
 
-      - name: SonarQube Scan (${{ matrix.service }}) # Executa a análise de código com SonarQube
+      - name: SonarQube Scan (${{ matrix.service }})
         uses: sonarsource/sonarqube-scan-action@master
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # Token de autenticação para o SonarQube (secreto do GitHub)
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} # O token permanece como variável de ambiente
         with:
-          projectBaseDir: ${{ matrix.service }} # Diretório base do projeto para a análise
-          projectKey: matheusmbarros-${{ matrix.service }} # Chave única do projeto no SonarQube
-          organization: ${{ secrets.SONAR_ORGANIZATION }} # Organização no SonarCloud (passado como input direto)
-          host.url: https://sonarcloud.io # URL do SonarCloud (passado como input direto)
+          projectBaseDir: ${{ matrix.service }} # Este input é válido e permanece
+          # CORREÇÃO: Os parâmetros inválidos foram movidos para dentro de 'args'
+          # com o prefixo -Dsonar.
           args: >
-            -Dsonar.qualitygate.wait=true # Espera pelo resultado do Quality Gate (outros args podem ser adicionados aqui)
-        # As propriedades 'organization' e 'host.url' foram movidas para inputs diretos da ação.
+            -Dsonar.projectKey=matheusmbarros-${{ matrix.service }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.qualitygate.wait=true
 
       - name: Upload Swagger YAML (${{ matrix.service }}) # Faz upload da documentação Swagger
         uses: actions/upload-artifact@v4
